@@ -3,7 +3,6 @@ library(shinythemes)
 library(shinyBS) # Additional Bootstrap Controls
 
 # Load the panels with the manual etc.
-source("snippets/quick_start.R")
 source("snippets/about.R")
 
 shinyUI(fluidPage(theme = shinytheme("spacelab"),
@@ -14,7 +13,7 @@ shinyUI(fluidPage(theme = shinytheme("spacelab"),
 	titlePanel("p-hacker: Train your p-hacking skills!"),
 	
 	div(class="row", 
-	    HTML(qs_panel), 
+	    HTML(readFile("snippets/quick_start.html")), 
 	    HTML(about_panel)
 	),	
 	
@@ -22,7 +21,7 @@ shinyUI(fluidPage(theme = shinytheme("spacelab"),
 	# The actual app ...
 	
 	fluidRow(
-		column(width=3,
+		column(width=4,
 			tabsetPanel(id ="tabs1",				
 				tabPanel("New study",	
 					h3("Settings for initial data collection:"),			
@@ -41,15 +40,19 @@ shinyUI(fluidPage(theme = shinytheme("spacelab"),
 					HTML("</div>")
 				),
 				tabPanel("Now: p-hack!", class="disabled",
-					h3("Tools to improve your p-value:"),
+					h3("Basic tools to improve your p-value:"),
 					checkboxInput("cov_age", "Control for age", FALSE),
 					checkboxInput("cov_gender", "Control for gender", FALSE),
 					checkboxInput("cov_gender_IA", "Interaction with gender", FALSE),
-		      div(class="btn-group-vertical",
+		      	  	div(class="btn-group-vertical",
 					  actionButton('add5','Add 5 new participants'),
 					  actionButton('add10','Add 10 new participants')
-		      )
-				)
+		      		)
+				)# ,
+# 				tabPanel("Expert feature: Subgroup analysis", class="disabled",
+# 					h3("Unlock the expert feature: Subgroup analysis!"),
+# 					checkboxInput("subgroups", "Do an expert subgroup analysis", FALSE)
+# 				)
 			)
 		),		
 		
@@ -57,13 +60,24 @@ shinyUI(fluidPage(theme = shinytheme("spacelab"),
 		# ---------------------------------------------------------------------
 		# The output panels, on the right side
 		
-		column(width=6, 					
-			htmlOutput("testoverview"),
-			htmlOutput("plotoverview"),
-			plotOutput("mainplot", 
-			  click="mainplot_clicked"           
-			),
-			htmlOutput("plothints")
+		column(width=5, 
+			conditionalPanel(
+				condition = "input.tabs1 == 'New study' | input.tabs1 == 'Now: p-hack!'",					
+				htmlOutput("testoverview"),
+				htmlOutput("plotoverview"),
+				plotOutput("mainplot", 
+				  click="mainplot_clicked"           
+				  ),
+				htmlOutput("plothints")
+			)#,
+			# conditionalPanel(
+# 				condition = "input.tabs1 == 'Expert feature: Subgroup analysis'",
+# 				HTML("<h3>Subgroup analysis: Age groups by gender</h3>"),
+# 				conditionalPanel(
+# 					condition = "input.subgroups == 1",
+# 					htmlOutput("subgroupOutput")
+# 				)
+#			)
 		),
 		
 		column(width=3,			

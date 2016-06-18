@@ -16,6 +16,14 @@ DV_ALL    <- 'DV_all' # name of average DV
 ##
 
 
+readFile <- function(filename) {
+  fileConnection <- file(filename, encoding="UTF-8")
+  text <- readChar(fileConnection, file.info(filename)$size, useBytes = TRUE)
+  Encoding(text) <- "UTF-8"
+  close(fileConnection)
+  text
+}
+
 # simple wrapper: formats a number in f.2 format
 f2 <- function(x, digits=2, prepoint=0, skipZero=FALSE) {	
 	if (skipZero == TRUE) {zero <- "."} else {zero <- "0."}

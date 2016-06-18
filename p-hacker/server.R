@@ -17,16 +17,17 @@ shinyServer(function(input, output, session) {
 		save_dv_observers = list(), # list of observer objects dynamically produced when displaying table
 		counter = 0,
 		chosen = '',
-		control_for_gender = F,
-		control_for_interaction = F,
+		DV_selector_sg.chosen = DV_ALL,
+		control_for_gender = FALSE,
+		control_for_interaction = FALSE,
 		next_seed = sample(1:5000,1,replace=TRUE),
 		current_seed = NULL,
 		dv_names = c(),
 		dv_names_all = c(),
 		TEST = NULL,
 		blub = 0,
-		flag_auto_selected = F,
-		flag_point_already_excluded = F
+		flag_auto_selected = FALSE,
+		flag_point_already_excluded = FALSE
 	)
 	
   
@@ -138,10 +139,13 @@ shinyServer(function(input, output, session) {
  	})
 
 
-	# dv chosen
+	# dvs chosen
 	observeEvent(input$DV_selector, {
-	  #Print(paste0("DV selector chosen option: ", input$DV_selector))
 	  dat$chosen <- input$DV_selector
+	})
+	
+	observeEvent(input$DV_selector_sg, {
+	  dat$DV_selector_sg.chosen <- input$DV_selector_sg
 	})
 	
 	# clear stack pressed
@@ -234,7 +238,7 @@ shinyServer(function(input, output, session) {
     dat$allData$group  <- factor(rep_len(c(input$label_group1, input$label_group2), n))
     
     # add column with randomized ages
-    dat$allData$age    <-  round(rgamma(n, 4, 0.5) + 18)
+    dat$allData$age    <-  round(rgamma(n, 5, 0.5) + 18)
     
     # add column with randomized genders
     dat$allData$gender <- factor(sample(0:1, n, replace=TRUE), labels=c("male", "female"))
@@ -380,7 +384,9 @@ shinyServer(function(input, output, session) {
 	
 
 	
-	# render plot overview
+	# ---------------------------------------------------------------------
+	#  render plot overview
+	
 	output$plotoverview <- renderUI({
 	  if(is.null(dat$chosen) || dat$counter < 1) {
 	    return()
@@ -412,7 +418,9 @@ shinyServer(function(input, output, session) {
 	})
 	
 	
-	# render main plot
+	# ---------------------------------------------------------------------
+	#  render main plot
+	
 	output$mainplot <- renderPlot({
 	  
 	  # react on changes in dat$TEST[[1]], dat$currentData, dat$chosen
@@ -420,7 +428,7 @@ shinyServer(function(input, output, session) {
 	  if (is.null(dat$TEST) || is.null(dat$selected) || is.null(dat$chosen) || nrow(dat$selected) == 0) return()
 	  
 	  isolate({
-  	  # TODO: Interaction plot when interaction with gender is chosen
+
   	  p_overview <- NULL
   	  dv <- dat$chosen
   	  
@@ -448,7 +456,7 @@ shinyServer(function(input, output, session) {
         
         p_overview <- ggplot(dat$allData[1:dat$n,], aes_string(x="group", y=dv)) + 
           stat_boxplot(geom ='errorbar', data = includedData, color = "grey", width = 0.5) + # draw vertical lines at lower and upper end
-          geom_boxplot(data = includedData, fill="grey", colour = "grey", alpha = 0.25) + # draw boxplot
+          geom_boxplot(data = includedData, fill="grey", colour = "grey", alpha = 0.25, outlier.color="red") + # draw boxplot
           geom_point(data = includedData, shape = 16, size=4, fill = NA) + # show data points
           geom_point(data = excludedData, shape = 21, size=4, fill = NA, colour = "black", alpha = 0.5) + # show excluded points
           theme_bw()
@@ -469,7 +477,10 @@ shinyServer(function(input, output, session) {
 	  }
 	})
 	
-	# render study stack panel
+
+	# ---------------------------------------------------------------------
+	#  render study stack panel
+	
 	output$studystack<- renderUI({
 		pchecker_link <- paste0("http://shinyapps.org/apps/p-checker/?syntax=", URLencode(dat$studystack, reserved=TRUE))
 
@@ -521,5 +532,54 @@ shinyServer(function(input, output, session) {
     
     div(class="alert alert-danger",role="alert",dat$last_error_msg)
   })
+
+
+  # ---------------------------------------------------------------------
+  # Subgroup analysis
+  
+  output$subgroupOutput <- renderUI({
+	  
+	  if (nrow(dat$allData) == 0) return()
+	  	  
+	  # split into 6 groups
+	  includedData <- getSelectedRows(dat$allData, dat$selected, dat$DV_selector_sg.chosen)
+	  includedData$ageGroup <- cut(includedData$age, breaks=c(0, median(includedData$age), max(includedData$age)), labels=c("young", "old"))
+	  
+	   print(includedData)
+	  
+	  subgroupTests <- data.frame()
+	  for (ag in levels(includedData$ageGroup)) {
+		  for (g in levels(includedData$gender)){
+			  iD2 <- includedData[includedData$ageGroup == ag & includedData$gender == g, ]
+			  
+			  print(iD2)
+			  
+			  if (sum(iD2$group == input$label_group1)>2 & sum(iD2$group == input$label_group2)>2) {
+				  
+				  sg.aov <- aov(formula(paste0(dat$DV_selector_sg.chosen, " ~ group")), iD2)
+			  
+				  subgroupTests <- rbind(subgroupTests, data.frame(
+					  agegroup = ag,
+					  gender = g,
+					  p.value = summary(sg.aov)[[1]]$Pr[1]
+					  ))				  
+			  }
+		  }
+	  }
+	  
+	  p1 <- ggplot(includedData, aes_string(x="group", y=dat$DV_selector_sg.chosen)) + geom_point() + facet_grid(gender~ageGroup) + stat_boxplot(geom ='errorbar', data = includedData, color = "grey", width = 0.5) + # draw vertical lines at lower and upper end
+          geom_boxplot(data = includedData, fill="grey", colour = "grey", alpha = 0.25, outlier.color="red") + # draw boxplot
+          geom_point(data = includedData, shape = 16, size=4, fill = NA) + # show data points
+		  theme_bw()
+	  
+	  
+    return(list(
+		HTML("PLOT"),
+		selectInput("DV_selector_sg", label="Choose DV for analysis", c(paste0(DV_PREFIX, 1:input$dv_n), isolate(dat$DV_selector_sg.chosen))),
+		renderTable(subgroupTests),
+		renderPlot(p1)
+	))
+  })
+
 
 })
