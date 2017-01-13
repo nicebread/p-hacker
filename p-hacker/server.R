@@ -145,7 +145,7 @@ shinyServer(function(input, output, session) {
 	})
 	
 	observeEvent(input$DV_selector_sg, {
-	  dat$DV_selector_sg.chosen <- input$DV_selector_sg
+	  dat$chosen.sg <- input$DV_selector_sg
 	})
 	
 	# clear stack pressed
@@ -202,8 +202,8 @@ shinyServer(function(input, output, session) {
 	  
 	  # set current and next seed and use it for creating random numbers
 	  #Print(seed)
-    dat$current_seed = seed
-    dat$next_seed = seed + 1
+    dat$current_seed <- seed
+    dat$next_seed <- seed + 1
     set.seed(seed)
     
     # set number of dvs and create labels accordingly
@@ -226,8 +226,8 @@ shinyServer(function(input, output, session) {
     # Create matrix of multinomially distributed random numbers
     # and convert it to data.frame. Each column represents a dv,
     # each row represents a subject.
-    p <- 0.5
-    sigma <- matrix(p, nrow=input$dv_n, ncol=input$dv_n)
+    dv.cor <- 0.2
+    sigma <- matrix(dv.cor, nrow=input$dv_n, ncol=input$dv_n)
     diag(sigma) <- 1.0
     dat$allData <- as.data.frame(rmvnorm(n, sigma=sigma))
     
@@ -538,25 +538,28 @@ shinyServer(function(input, output, session) {
   # Subgroup analysis
   
   output$subgroupOutput <- renderUI({
+
 	  
 	  if (nrow(dat$allData) == 0) return()
 	  	  
 	  # split into 6 groups
-	  includedData <- getSelectedRows(dat$allData, dat$selected, dat$DV_selector_sg.chosen)
+	  includedData <- getSelectedRows(dat$allData, dat$selected, dat$chosen)
 	  includedData$ageGroup <- cut(includedData$age, breaks=c(0, median(includedData$age), max(includedData$age)), labels=c("young", "old"))
-	  
-	   print(includedData)
 	  
 	  subgroupTests <- data.frame()
 	  for (ag in levels(includedData$ageGroup)) {
 		  for (g in levels(includedData$gender)){
+			  
+			  print(paste0("Computing ", ag, "/", g))
+			  
 			  iD2 <- includedData[includedData$ageGroup == ag & includedData$gender == g, ]
 			  
-			  print(iD2)
+			  #print(table(iD2$group))
 			  
-			  if (sum(iD2$group == input$label_group1)>2 & sum(iD2$group == input$label_group2)>2) {
+			  # if at least 5 participants are in each cell, compute the ANOVA
+			  if (sum(iD2$group == input$label_group1)>5 & sum(iD2$group == input$label_group2)>5) {
 				  
-				  sg.aov <- aov(formula(paste0(dat$DV_selector_sg.chosen, " ~ group")), iD2)
+				  sg.aov <- aov(formula(paste0(dat$chosen, " ~ group")), iD2)
 			  
 				  subgroupTests <- rbind(subgroupTests, data.frame(
 					  agegroup = ag,
@@ -567,17 +570,18 @@ shinyServer(function(input, output, session) {
 		  }
 	  }
 	  
-	  p1 <- ggplot(includedData, aes_string(x="group", y=dat$DV_selector_sg.chosen)) + geom_point() + facet_grid(gender~ageGroup) + stat_boxplot(geom ='errorbar', data = includedData, color = "grey", width = 0.5) + # draw vertical lines at lower and upper end
-          geom_boxplot(data = includedData, fill="grey", colour = "grey", alpha = 0.25, outlier.color="red") + # draw boxplot
-          geom_point(data = includedData, shape = 16, size=4, fill = NA) + # show data points
-		  theme_bw()
+	  print(subgroupTests)
+	  
+	  # p1 <- ggplot(includedData, aes_string(x="group", y=dat$chosen)) + geom_point() + facet_grid(gender~ageGroup) + stat_boxplot(geom ='errorbar', data = includedData, color = "grey", width = 0.5) + # draw vertical lines at lower and upper end
+	  #           geom_boxplot(data = includedData, fill="grey", colour = "grey", alpha = 0.25, outlier.color="red") + # draw boxplot
+	  #           geom_point(data = includedData, shape = 16, size=4, fill = NA) + # show data points
+	  # 		  theme_bw()
 	  
 	  
     return(list(
-		HTML("PLOT"),
-		selectInput("DV_selector_sg", label="Choose DV for analysis", c(paste0(DV_PREFIX, 1:input$dv_n), isolate(dat$DV_selector_sg.chosen))),
-		renderTable(subgroupTests),
-		renderPlot(p1)
+		#selectInput("DV_selector_sg", label="Choose DV for analysis", c(paste0(DV_PREFIX, 1:isolate({input$dv_n})), isolate({dat$chosen.sg}))),
+		renderTable(subgroupTests)#,
+		#renderPlot(p1)
 	))
   })
 
